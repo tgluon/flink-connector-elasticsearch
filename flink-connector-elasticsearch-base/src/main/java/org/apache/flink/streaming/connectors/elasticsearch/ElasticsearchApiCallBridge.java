@@ -19,9 +19,12 @@
 package org.apache.flink.streaming.connectors.elasticsearch;
 
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.api.java.tuple.Tuple2;
 
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchScrollRequest;
 
 import javax.annotation.Nullable;
 
@@ -60,6 +63,18 @@ public interface ElasticsearchApiCallBridge<C extends AutoCloseable> extends Ser
      * @return the bulk processor builder.
      */
     BulkProcessor.Builder createBulkProcessorBuilder(C client, BulkProcessor.Listener listener);
+
+    ElasticsearchInputSplit[] createInputSplitsInternal(
+            C client, String index, String type, int minNumSplits);
+
+    Tuple2<String, String[]> search(C client, SearchRequest searchRequest) throws IOException;
+
+    Tuple2<String, String[]> scroll(C client, SearchScrollRequest searchScrollRequest)
+            throws IOException;
+
+    void clearContext(C client, String currentScrollWindowId) throws IOException;
+
+    void close(C client) throws IOException;
 
     /**
      * Extracts the cause of failure of a bulk item action.

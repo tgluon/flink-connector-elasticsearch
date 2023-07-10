@@ -18,7 +18,9 @@
 package org.apache.flink.streaming.connectors.elasticsearch7;
 
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.connectors.elasticsearch.ElasticsearchApiCallBridge;
+import org.apache.flink.streaming.connectors.elasticsearch.ElasticsearchInputSplit;
 import org.apache.flink.streaming.connectors.elasticsearch.ElasticsearchSinkBase;
 import org.apache.flink.streaming.connectors.elasticsearch.RequestIndexer;
 import org.apache.flink.util.Preconditions;
@@ -27,17 +29,23 @@ import org.apache.http.HttpHost;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor;
+import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.search.SearchHit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -51,12 +59,12 @@ public class Elasticsearch7ApiCallBridge
     private static final Logger LOG = LoggerFactory.getLogger(Elasticsearch7ApiCallBridge.class);
 
     /** User-provided HTTP Host. */
-    private final List<HttpHost> httpHosts;
+    private final String httpHosts;
 
     /** The factory to configure the rest client. */
     private final RestClientFactory restClientFactory;
 
-    Elasticsearch7ApiCallBridge(List<HttpHost> httpHosts, RestClientFactory restClientFactory) {
+    public Elasticsearch7ApiCallBridge(String httpHosts, RestClientFactory restClientFactory) {
         Preconditions.checkArgument(httpHosts != null && !httpHosts.isEmpty());
         this.httpHosts = httpHosts;
         this.restClientFactory = Preconditions.checkNotNull(restClientFactory);
@@ -64,8 +72,12 @@ public class Elasticsearch7ApiCallBridge
 
     @Override
     public RestHighLevelClient createClient() {
-        RestClientBuilder builder =
-                RestClient.builder(httpHosts.toArray(new HttpHost[httpHosts.size()]));
+        String[] split = httpHosts.split(";");
+        HttpHost[] hosts = new HttpHost[split.length];
+        for (int i = 0; i < split.length; i++) {
+            hosts[i] = HttpHost.create(split[i]);
+        }
+        RestClientBuilder builder = RestClient.builder(hosts);
         restClientFactory.configureRestClientBuilder(builder);
 
         RestHighLevelClient rhlClient = new RestHighLevelClient(builder);
@@ -80,6 +92,69 @@ public class Elasticsearch7ApiCallBridge
                 (request, bulkListener) ->
                         client.bulkAsync(request, RequestOptions.DEFAULT, bulkListener),
                 listener);
+    }
+
+    @Override
+    public ElasticsearchInputSplit[] createInputSplitsInternal(
+            RestHighLevelClient client, String index, String type, int minNumSplits) {
+        List<ElasticsearchInputSplit> elasticsearchSplits = new ArrayList<>();
+
+        String[] split = httpHosts.split(";");
+        String[] hosts = new String[split.length];
+        for (int i = 0; i < split.length; i++) {
+            hosts[i] = split[i];
+        }
+        elasticsearchSplits.add(
+                new ElasticsearchInputSplit(minNumSplits, hosts, index, type, minNumSplits));
+        return elasticsearchSplits.toArray(new ElasticsearchInputSplit[0]);
+    }
+
+    @Override
+    public Tuple2<String, String[]> search(RestHighLevelClient client, SearchRequest searchRequest)
+            throws IOException {
+        SearchResponse searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
+        // 游标
+        String scrollId = searchResponse.getScrollId();
+
+        // 第一次拉取记录
+        SearchHit[] searchHits = searchResponse.getHits().getHits();
+
+        List<String> searchResult = new ArrayList<>();
+        for (SearchHit hit : searchHits) {
+            searchResult.add(hit.getSourceAsString());
+        }
+        return new Tuple2<>(scrollId, searchResult.toArray(new String[0]));
+    }
+
+    @Override
+    public Tuple2<String, String[]> scroll(
+            RestHighLevelClient client, SearchScrollRequest searchScrollRequest)
+            throws IOException {
+        // 滚动查询
+        SearchResponse searchResponse = client.scroll(searchScrollRequest, RequestOptions.DEFAULT);
+        // 游标
+        String scrollId = searchResponse.getScrollId();
+
+        // 滚动查询记录
+        SearchHit[] searchHits = searchResponse.getHits().getHits();
+
+        List<String> searchResult = new ArrayList<>();
+        for (SearchHit hit : searchHits) {
+            searchResult.add(hit.getSourceAsString());
+        }
+        return new Tuple2<>(scrollId, searchResult.toArray(new String[0]));
+    }
+
+    public void clearContext(RestHighLevelClient client, String currentScrollWindowId)
+            throws IOException {
+        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
+        clearScrollRequest.addScrollId(currentScrollWindowId);
+        client.clearScroll(clearScrollRequest, RequestOptions.DEFAULT);
+    }
+
+    @Override
+    public void close(RestHighLevelClient client) throws IOException {
+        client.close();
     }
 
     @Override

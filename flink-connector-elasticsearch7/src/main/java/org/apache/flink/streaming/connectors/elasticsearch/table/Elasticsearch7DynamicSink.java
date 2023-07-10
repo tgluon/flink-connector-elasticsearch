@@ -33,7 +33,6 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.types.RowKind;
 import org.apache.flink.util.StringUtils;
 
-import org.apache.http.HttpHost;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
@@ -47,7 +46,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import javax.annotation.Nullable;
 
 import java.time.ZoneId;
-import java.util.List;
 import java.util.Objects;
 
 /**
@@ -55,7 +53,7 @@ import java.util.Objects;
  * logical description.
  */
 @Internal
-final class Elasticsearch7DynamicSink implements DynamicTableSink {
+public final class Elasticsearch7DynamicSink implements DynamicTableSink {
     @VisibleForTesting
     static final Elasticsearch7RequestFactory REQUEST_FACTORY = new Elasticsearch7RequestFactory();
 
@@ -88,7 +86,7 @@ final class Elasticsearch7DynamicSink implements DynamicTableSink {
     @FunctionalInterface
     interface ElasticSearchBuilderProvider {
         ElasticsearchSink.Builder<RowData> createBuilder(
-                List<HttpHost> httpHosts, RowElasticsearchSinkFunction upsertSinkFunction);
+                String httpHosts, RowElasticsearchSinkFunction upsertSinkFunction);
     }
 
     Elasticsearch7DynamicSink(
@@ -146,7 +144,8 @@ final class Elasticsearch7DynamicSink implements DynamicTableSink {
                             KeyExtractor.createKeyExtractor(schema, config.getKeyDelimiter()));
 
             final ElasticsearchSink.Builder<RowData> builder =
-                    builderProvider.createBuilder(config.getHosts(), upsertFunction);
+                    builderProvider.createBuilder(
+                            String.join(";", config.getHosts()), upsertFunction);
 
             builder.setFailureHandler(config.getFailureHandler());
             builder.setBulkFlushMaxActions(config.getBulkFlushMaxActions());

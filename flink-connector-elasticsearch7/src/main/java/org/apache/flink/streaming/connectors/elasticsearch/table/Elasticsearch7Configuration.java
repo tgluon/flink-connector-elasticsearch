@@ -25,7 +25,6 @@ import org.apache.flink.table.api.ValidationException;
 import org.apache.http.HttpHost;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.apache.flink.streaming.connectors.elasticsearch.table.ElasticsearchConnectorOptions.HOSTS_OPTION;
 
@@ -36,10 +35,8 @@ final class Elasticsearch7Configuration extends ElasticsearchConfiguration {
         super(config, classLoader);
     }
 
-    public List<HttpHost> getHosts() {
-        return config.get(HOSTS_OPTION).stream()
-                .map(Elasticsearch7Configuration::validateAndParseHostsString)
-                .collect(Collectors.toList());
+    public List<String> getHosts() {
+        return config.get(HOSTS_OPTION);
     }
 
     private static HttpHost validateAndParseHostsString(String host) {

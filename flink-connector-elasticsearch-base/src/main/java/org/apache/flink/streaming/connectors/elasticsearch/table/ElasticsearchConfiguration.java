@@ -46,7 +46,7 @@ class ElasticsearchConfiguration {
     protected final ReadableConfig config;
     private final ClassLoader classLoader;
 
-    ElasticsearchConfiguration(ReadableConfig config, ClassLoader classLoader) {
+    public ElasticsearchConfiguration(ReadableConfig config, ClassLoader classLoader) {
         this.config = config;
         this.classLoader = classLoader;
     }
@@ -148,6 +148,27 @@ class ElasticsearchConfiguration {
 
     public Optional<String> getPathPrefix() {
         return config.getOptional(ElasticsearchConnectorOptions.CONNECTION_PATH_PREFIX);
+    }
+
+    public Optional<Integer> getScrollMaxSize() {
+        return config.getOptional(ElasticsearchConnectorOptions.SCROLL_MAX_SIZE_OPTION);
+    }
+
+    public Optional<Long> getScrollTimeout() {
+        return config.getOptional(ElasticsearchConnectorOptions.SCROLL_TIMEOUT_OPTION)
+                .map(Duration::toMillis);
+    }
+
+    public long getCacheMaxSize() {
+        return config.get(ElasticsearchConnectorOptions.LOOKUP_CACHE_MAX_ROWS);
+    }
+
+    public Duration getCacheExpiredMs() {
+        return config.get(ElasticsearchConnectorOptions.LOOKUP_CACHE_TTL);
+    }
+
+    public int getMaxRetryTimes() {
+        return config.get(ElasticsearchConnectorOptions.LOOKUP_MAX_RETRIES);
     }
 
     @Override

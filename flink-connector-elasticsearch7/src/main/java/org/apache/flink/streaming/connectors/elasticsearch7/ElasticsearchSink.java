@@ -30,7 +30,6 @@ import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.client.RestHighLevelClient;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -69,7 +68,7 @@ public class ElasticsearchSink<T> extends ElasticsearchSinkBase<T, RestHighLevel
 
     private ElasticsearchSink(
             Map<String, String> bulkRequestsConfig,
-            List<HttpHost> httpHosts,
+            String httpHosts,
             ElasticsearchSinkFunction<T> elasticsearchSinkFunction,
             ActionRequestFailureHandler failureHandler,
             RestClientFactory restClientFactory) {
@@ -92,7 +91,7 @@ public class ElasticsearchSink<T> extends ElasticsearchSinkBase<T, RestHighLevel
     @PublicEvolving
     public static class Builder<T> {
 
-        private final List<HttpHost> httpHosts;
+        private final String httpHosts;
         private final ElasticsearchSinkFunction<T> elasticsearchSinkFunction;
 
         private Map<String, String> bulkRequestsConfig = new HashMap<>();
@@ -108,8 +107,7 @@ public class ElasticsearchSink<T> extends ElasticsearchSinkBase<T, RestHighLevel
          * @param elasticsearchSinkFunction This is used to generate multiple {@link ActionRequest}
          *     from the incoming element.
          */
-        public Builder(
-                List<HttpHost> httpHosts, ElasticsearchSinkFunction<T> elasticsearchSinkFunction) {
+        public Builder(String httpHosts, ElasticsearchSinkFunction<T> elasticsearchSinkFunction) {
             this.httpHosts = Preconditions.checkNotNull(httpHosts);
             this.elasticsearchSinkFunction = Preconditions.checkNotNull(elasticsearchSinkFunction);
         }
